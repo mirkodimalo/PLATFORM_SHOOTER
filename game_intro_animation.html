@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Platform Shooter - Cinematic Intro</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #000;
+            overflow: hidden;
+            font-family: 'Arial', sans-serif;
+        }
+
+        #intro-canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+            background: #000;
+        }
+
+        .skip-button {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            padding: 15px 30px;
+            background: rgba(255, 69, 0, 0.3);
+            border: 2px solid #ff4500;
+            color: #fff;
+            font-size: 16px;
+            cursor: pointer;
+            z-index: 1000;
+            transition: all 0.3s;
+            font-weight: bold;
+        }
+
+        .skip-button:hover {
+            background: rgba(255, 69, 0, 0.6);
+            box-shadow: 0 0 20px #ff4500;
+        }
+
+        .dialogue {
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #fff;
+            font-size: 28px;
+            text-align: center;
+            text-shadow: 2px 2px 8px rgba(0,0,0,0.9);
+            opacity: 0;
+            z-index: 100;
+            max-width: 80%;
+            font-style: italic;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translate(0, 0); }
+            10%, 30%, 50%, 70%, 90% { transform: translate(-2px, 2px); }
+            20%, 40%, 60%, 80% { transform: translate(2px, -2px); }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="intro-canvas"></canvas>
+    <div class="dialogue" id="dialogue"></div>
+    <button class="skip-button" onclick="skipIntro()">SALTA INTRO</button>
+
+    <script>
+        const canvas = document.getElementById('intro-canvas');
+        const ctx = canvas.getContext('2d');
+        const dialogue = document.getElementById('dialogue');
+
+        // Resize canvas
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+
+        // Variabili animazione
+        let time = 0;
+        let scene = 1;
+        let sceneTime = 0;
+
+        // Elementi visivi
+        const particles = [];
+        const embers = [];
+
+        // Personaggio
+        const protagonist = {
+            x: canvas.width / 2,
+            y: canvas.height / 2 + 100,
+            alpha: 0,
+            scale: 1
+        };
+
+        // Molten Boss
+        const moltenBoss = {
+            x: canvas.width - 300,
+            y: 200,
+            alpha: 0,
+            glowIntensity: 0,
+            cracks: []
+        };
+
+        // Arma
+        const weapon = {
+            x: canvas.width / 2 - 100,
+            y: canvas.height - 200,
+            alpha: 0,
+            glow: 0,
+            discovered: false
+        };
+
+        // Città
+        const city = {
+            buildings: [],
+            alpha: 0,
+            shake: 0
+        };
+
+        // Genera città
+        for (let i = 0; i < 15; i++) {
+            city.buildings.push({
+                x: (canvas.width / 15) * i,
+                y: canvas.height / 2,
+                width: canvas.width / 15 + 10,
+                height: 150 + Math.random() * 200,
+                lights: Math.random() > 0.5
+            });
+        }
+
+        // Genera crepe lava per Molten Boss
+        for (let i = 0; i < 8; i++) {
+            moltenBoss.cracks.push({
+                x: -40 + Math.random() * 80,
+                y: -60 + Math.random() * 120,
+                length: 20 + Math.random() * 40,
+                angle: Math.random() * Math.PI * 2,
+                intensity: Math.random()
+            });
+        }
+
+        // Particelle
+        class Particle {
+            constructor(x, y, color, speedX, speedY) {
+                this.x = x;
+                this.y = y;
+                this.color = color;
+                this.speedX = speedX;
+                this.speedY = speedY;
+                this.alpha = 1;
+                this.size = 2 + Math.random() * 3;
+            }
+
+            update() {
+                this.x += this.speedX;
+                this.y += this.speedY;
+                this.speedY += 0.1; // Gravità
+                this.alpha -= 0.02;
+            }
+
+            draw() {
+                ctx.save();
+                ctx.globalAlpha = this.alpha;
+                ctx.fillStyle = this.color;
+                ctx.shadowColor = this.color;
+                ctx.shadowBlur = 10;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        // Dialoghi
+        function showDialogue(text, duration = 3000) {
+            dialogue.textContent = text;
+            dialogue.style.animation = 'fadeIn 1s forwards';
+            
+            setTimeout(() => {
+                dialogue.style.animation = 'fadeOut 1s forwards';
+            }, duration);
+        }
+
+        // Crea particelle lava
+        function createLavaParticles(x, y, count = 5) {
+            for (let i = 0; i < count; i++) {
+                particles.push(new Particle(
+                    x + (Math.random() - 0.5) * 100,
+                    y + (Math.random() - 0.5) * 100,
+                    Math.random() > 0.5 ? '#ff4500' : '#ff8800',
+                    (Math.random() - 0.5) * 4,
+                    -Math.random() * 3
+                ));
+            }
+        }
+
+        // Crea braci finali
+        function createEmbers() {
+            for (let i = 0; i < 30; i++) {
+                embers.push({
+                    x: Math.random() * canvas.width,
+                    y: canvas.height + Math.random() * 100,
+                    speedY: -0.5 - Math.random() * 2,
+                    speedX: (Math.random() - 0.5) * 0.5,
+                    size: 2 + Math.random() * 4,
+                    alpha: Math.random()
+                });
+            }
+        }
+
+        // Disegna protagonista
+        function drawProtagonist() {
+            if (protagonist.alpha <= 0) return;
+
+            ctx.save();
+            ctx.globalAlpha = protagonist.alpha;
+            ctx.translate(protagonist.x, protagonist.y);
+            ctx.scale(protagonist.scale, protagonist.scale);
+
+            // Corpo
+            ctx.fillStyle = '#4ecdc4';
+            ctx.fillRect(-20, -30, 40, 60);
+
+            // Occhi
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(-10, -20, 8, 8);
+            ctx.fillRect(2, -20, 8, 8);
+
+            // Arma (se scoperta)
+            if (weapon.discovered) {
+                const weaponGlow = Math.sin(time * 0.1) * 0.3 + 0.7;
+                ctx.shadowColor = '#ff8800';
+                ctx.shadowBlur = 15 * weaponGlow;
+                ctx.fillStyle = '#ff4500';
+                ctx.fillRect(15, -5, 25, 10);
+            }
+
+            ctx.restore();
+        }
+
+        // Disegna Molten Boss
+        function drawMoltenBoss() {
+            if (moltenBoss.alpha <= 0) return;
+
+            const pulse = Math.sin(time * 0.05) * 0.3 + 1;
+
+            ctx.save();
+            ctx.globalAlpha = moltenBoss.alpha;
+            ctx.translate(moltenBoss.x, moltenBoss.y);
+
+            // Alone di calore
+            ctx.shadowColor = '#ff4500';
+            ctx.shadowBlur = 40 * pulse * moltenBoss.glowIntensity;
+            ctx.fillStyle = `rgba(255, 69, 0, ${0.1 * moltenBoss.glowIntensity})`;
+            ctx.beginPath();
+            ctx.arc(0, 0, 100 * pulse, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Corpo
+            ctx.fillStyle = '#ff4500';
+            ctx.fillRect(-40, -60, 80, 120);
+
+            // Crepe di lava
+            moltenBoss.cracks.forEach(crack => {
+                const crackPulse = Math.sin(time * 0.08 + crack.intensity * 10) * 0.5 + 0.5;
+                ctx.strokeStyle = `rgba(255, ${200 * crackPulse}, 0, ${0.8 * crackPulse})`;
+                ctx.lineWidth = 3;
+                ctx.shadowBlur = 12 * crackPulse;
+                ctx.beginPath();
+                ctx.moveTo(crack.x, crack.y);
+                ctx.lineTo(
+                    crack.x + Math.cos(crack.angle) * crack.length,
+                    crack.y + Math.sin(crack.angle) * crack.length
+                );
+                ctx.stroke();
+            });
+
+            // Occhi
+            ctx.fillStyle = '#ffff00';
+            ctx.shadowColor = '#ffff00';
+            ctx.shadowBlur = 20;
+            ctx.fillRect(-25, -35, 15, 15);
+            ctx.fillRect(10, -35, 15, 15);
+
+            // Corna
+            ctx.strokeStyle = '#1a0000';
+            ctx.lineWidth = 8;
+            ctx.beginPath();
+            ctx.moveTo(-20, -60);
+            ctx.quadraticCurveTo(-35, -85, -25, -100);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(20, -60);
+            ctx.quadraticCurveTo(35, -85, 25, -100);
+            ctx.stroke();
+
+            ctx.restore();
+
+            // Particelle continue
+            if (moltenBoss.alpha > 0.5 && Math.random() < 0.1) {
+                createLavaParticles(moltenBoss.x, moltenBoss.y + 60, 2);
+            }
+        }
+
+        // Disegna città
+        function drawCity() {
+            if (city.alpha <= 0) return;
+
+            ctx.save();
+            
+            // Shake effect
+            if (city.shake > 0) {
+                ctx.translate(
+                    (Math.random() - 0.5) * city.shake,
+                    (Math.random() - 0.5) * city.shake
+                );
+            }
+
+            ctx.globalAlpha = city.alpha;
+
+            // Lava sotto
+            const lavaGradient = ctx.createLinearGradient(0, canvas.height - 100, 0, canvas.height);
+            lavaGradient.addColorStop(0, 'rgba(255, 69, 0, 0.5)');
+            lavaGradient.addColorStop(1, 'rgba(255, 150, 0, 0.8)');
+            ctx.fillStyle = lavaGradient;
+            ctx.fillRect(0, canvas.height - 100, canvas.width, 100);
+
+            // Buildings
+            city.buildings.forEach(building => {
+                ctx.fillStyle = '#1a1a1a';
+                ctx.fillRect(building.x, building.y, building.width, building.height);
+
+                // Luci rosse
+                if (building.lights) {
+                    const lightPulse = Math.sin(time * 0.1) * 0.5 + 0.5;
+                    ctx.fillStyle = `rgba(255, 0, 0, ${0.6 * lightPulse})`;
+                    for (let i = 0; i < 3; i++) {
+                        ctx.fillRect(
+                            building.x + 10,
+                            building.y + 20 + i * 30,
+                            building.width - 20,
+                            5
+                        );
+                    }
+                }
+            });
+
+            ctx.restore();
+        }
+
+        // Disegna arma
+        function drawWeapon() {
+            if (weapon.alpha <= 0) return;
+
+            const glow = Math.sin(time * 0.15) * 0.5 + 0.5;
+
+            ctx.save();
+            ctx.globalAlpha = weapon.alpha;
+            ctx.translate(weapon.x, weapon.y);
+
+            // Alone arancione
+            ctx.shadowColor = '#ff8800';
+            ctx.shadowBlur = 30 * glow * weapon.glow;
+            ctx.fillStyle = `rgba(255, 136, 0, ${0.2 * glow * weapon.glow})`;
+            ctx.beginPath();
+            ctx.arc(0, 0, 40 * glow, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Arma
+            ctx.fillStyle = '#ff4500';
+            ctx.fillRect(-30, -8, 60, 16);
+            
+            // Core luminoso
+            ctx.fillStyle = `rgba(255, 255, 0, ${0.8 * glow})`;
+            ctx.fillRect(-10, -4, 20, 8);
+
+            ctx.restore();
+        }
+
+        // Disegna piattaforma iniziale
+        function drawPlatform() {
+            if (scene !== 1) return;
+
+            ctx.fillStyle = '#2c3e50';
+            ctx.fillRect(
+                protagonist.x - 100,
+                protagonist.y + 30,
+                200,
+                20
+            );
+        }
+
+        // Testo finale
+        function drawFinalText() {
+            if (scene !== 5) return;
+
+            const textAlpha = Math.min((sceneTime - 1000) / 1000, 1);
+
+            ctx.save();
+            ctx.globalAlpha = textAlpha;
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 48px Arial';
+            ctx.textAlign = 'center';
+            ctx.shadowColor = '#ff4500';
+            ctx.shadowBlur = 20;
+            ctx.fillText('"Every fire can be extinguished."', canvas.width / 2, canvas.height / 2);
+            ctx.restore();
+
+            // Title
+            if (sceneTime > 3000) {
+                const titleAlpha = Math.min((sceneTime - 3000) / 1000, 1);
+                ctx.save();
+                ctx.globalAlpha = titleAlpha;
+                ctx.fillStyle = '#ff4500';
+                ctx.font = 'bold 72px Arial';
+                ctx.textAlign = 'center';
+                ctx.shadowColor = '#ff8800';
+                ctx.shadowBlur = 30;
+                ctx.fillText('PLATFORM SHOOTER', canvas.width / 2, canvas.height / 2 + 100);
+                ctx.restore();
+            }
+        }
+
+        // Update scene logic
+        function updateScene() {
+            sceneTime += 16.67; // ~60fps
+
+            // SCENE 1 - SILENCE (0-15s)
+            if (scene === 1) {
+                if (sceneTime > 3000 && sceneTime < 4000) {
+                    showDialogue('"No one remembers where I came from."', 2000);
+                }
+                if (sceneTime > 6000 && sceneTime < 7000) {
+                    showDialogue('"Maybe I was never meant to exist."', 2000);
+                }
+                
+                protagonist.alpha = Math.min(sceneTime / 5000, 1);
+
+                if (sceneTime > 15000) {
+                    scene = 2;
+                    sceneTime = 0;
+                }
+            }
+
+            // SCENE 2 - THE WORLD ABOVE (15-35s)
+            else if (scene === 2) {
+                city.alpha = Math.min(sceneTime / 3000, 1);
+                moltenBoss.alpha = Math.min((sceneTime - 2000) / 3000, 1);
+                moltenBoss.glowIntensity = Math.min((sceneTime - 4000) / 2000, 1);
+
+                if (sceneTime > 5000 && sceneTime < 6000) {
+                    showDialogue('"This world burns for him."', 3000);
+                }
+
+                if (sceneTime > 8000) {
+                    city.shake = 5;
+                }
+
+                if (sceneTime > 20000) {
+                    scene = 3;
+                    sceneTime = 0;
+                    city.alpha = 0;
+                    moltenBoss.alpha = 0;
+                }
+            }
+
+            // SCENE 3 - THE DISCOVERY (35-60s)
+            else if (scene === 3) {
+                protagonist.y = canvas.height / 2 + 200;
+                protagonist.x = 200 + sceneTime / 50;
+
+                weapon.alpha = Math.min((sceneTime - 10000) / 2000, 1);
+                weapon.glow = Math.min((sceneTime - 12000) / 2000, 1);
+
+                if (sceneTime > 15000 && sceneTime < 16000) {
+                    showDialogue('"Power…"', 2000);
+                }
+
+                if (sceneTime > 18000 && sceneTime < 19000) {
+                    showDialogue('"…or a choice?"', 3000);
+                }
+
+                if (sceneTime > 20000) {
+                    weapon.discovered = true;
+                    protagonist.scale = 1.1;
+                }
+
+                if (sceneTime > 25000) {
+                    scene = 4;
+                    sceneTime = 0;
+                    weapon.alpha = 0;
+                }
+            }
+
+            // SCENE 4 - AWAKENING (60-80s)
+            else if (scene === 4) {
+                city.alpha = Math.min(sceneTime / 2000, 1);
+                moltenBoss.alpha = Math.min(sceneTime / 2000, 1);
+                moltenBoss.glowIntensity = 1;
+                city.shake = 8;
+
+                protagonist.x = 300;
+                protagonist.y = canvas.height / 2 + 150;
+                protagonist.alpha = 1;
+
+                if (Math.random() < 0.3) {
+                    createLavaParticles(moltenBoss.x, moltenBoss.y + 60, 3);
+                }
+
+                if (sceneTime > 20000) {
+                    scene = 5;
+                    sceneTime = 0;
+                    createEmbers();
+                }
+            }
+
+            // SCENE 5 - FINAL SHOT (80-90s)
+            else if (scene === 5) {
+                protagonist.x = 200;
+                protagonist.alpha = 1;
+                moltenBoss.x = canvas.width - 300;
+                moltenBoss.alpha = 1;
+                city.alpha = 0.3;
+
+                if (sceneTime > 6000) {
+                    // Fade to black
+                    ctx.fillStyle = `rgba(0, 0, 0, ${Math.min((sceneTime - 6000) / 2000, 0.8)})`;
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                }
+
+                if (sceneTime > 10000) {
+                    // Fine animazione
+                    skipIntro();
+                }
+            }
+        }
+
+        // Main animation loop
+        function animate() {
+            if (!animationRunning) return; // Ferma se skip
+            
+            time++;
+            
+            // Clear
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Update
+            updateScene();
+
+            // Draw elements based on scene
+            drawCity();
+            drawPlatform();
+            drawProtagonist();
+            drawMoltenBoss();
+            drawWeapon();
+
+            // Particles
+            particles.forEach((p, i) => {
+                p.update();
+                p.draw();
+                if (p.alpha <= 0) particles.splice(i, 1);
+            });
+
+            // Embers (scene 5)
+            if (scene === 5) {
+                embers.forEach(ember => {
+                    ember.y += ember.speedY;
+                    ember.x += ember.speedX;
+                    
+                    if (ember.y < -10) ember.y = canvas.height;
+
+                    ctx.save();
+                    ctx.globalAlpha = ember.alpha;
+                    ctx.fillStyle = '#ff8800';
+                    ctx.shadowColor = '#ff4500';
+                    ctx.shadowBlur = 10;
+                    ctx.beginPath();
+                    ctx.arc(ember.x, ember.y, ember.size, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                });
+            }
+
+            drawFinalText();
+
+            requestAnimationFrame(animate);
+        }
+
+        let animationRunning = true;
+
+        function skipIntro() {
+            animationRunning = false;
+            
+            // Ferma l'animazione
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Nascondi dialoghi e pulsante
+            dialogue.style.display = 'none';
+            document.querySelector('.skip-button').style.display = 'none';
+            
+            // Mostra messaggio finale
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 48px Arial';
+            ctx.textAlign = 'center';
+            ctx.shadowColor = '#ff4500';
+            ctx.shadowBlur = 20;
+            ctx.fillText('Animazione Terminata', canvas.width / 2, canvas.height / 2 - 50);
+            
+            ctx.font = '24px Arial';
+            ctx.fillStyle = '#ffff00';
+            ctx.shadowBlur = 10;
+            ctx.fillText('Apri platform_shooter_modified.html per giocare', canvas.width / 2, canvas.height / 2 + 20);
+            
+            ctx.font = '18px Arial';
+            ctx.fillStyle = '#888';
+            ctx.shadowBlur = 0;
+            ctx.fillText('Ricarica la pagina per rivedere l\'animazione', canvas.width / 2, canvas.height / 2 + 80);
+        }
+
+        // Start
+        animate();
+    </script>
+</body>
+</html>
